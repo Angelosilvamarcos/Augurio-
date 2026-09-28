@@ -11,7 +11,7 @@ const tasks = [
 
 const tools = [
   ["Claude", "Agente principal", "Conectado"],
-  ["Gemini", "Segundo modelo", "Próximo"],
+  ["Gemini", "Fallback resiliente", "Configurado"],
   ["GitHub", "Código e PRs", "Disponível"],
   ["Web", "Pesquisa e navegação", "Disponível"],
   ["Arquivos", "Documentos e dados", "Local Agent"],
@@ -116,9 +116,14 @@ export default function Home() {
                   <span className="chip"><Zap size={12} /> Adaptar</span>
                   <span className="chip"><ShieldCheck size={12} /> Validar</span>
                 </div>
-                <button className="primary" onClick={run} disabled={running || !prompt.trim()}>
-                  {running ? "Consultando…" : "Executar"} <ArrowUpRight size={15} />
-                </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="secondary" onClick={() => run("gemini")} disabled={running || !prompt.trim()}>
+                    Testar Gemini
+                  </button>
+                  <button className="primary" onClick={() => run("auto")} disabled={running || !prompt.trim()}>
+                    {running ? "Consultando…" : "Executar"} <ArrowUpRight size={15} />
+                  </button>
+                </div>
               </div>
             </div>
 
