@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { planTask } from "@/lib/agent/orchestrator";
+import { planTask } from "../../../lib/agent/orchestrator";
 
 export async function POST(request: Request) {
   try {
