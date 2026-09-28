@@ -8,6 +8,12 @@ const registry: ToolDefinition[] = [
     status: "ready",
   },
   {
+    name: "gemini",
+    description: "Modelo secundário para continuidade e recuperação.",
+    permission: "read",
+    status: "ready",
+  },
+  {
     name: "github",
     description: "Ler e modificar repositórios, branches, commits e pull requests.",
     permission: "write",
@@ -31,11 +37,10 @@ const registry: ToolDefinition[] = [
     description: "Persistir memória, tarefas, eventos e estado operacional.",
     permission: "write",
     status: "planned",
-    requiresConfirmation: false,
   },
   {
     name: "local-agent",
-    description: "Executar ações no computador do usuário através de uma ponte local segura.",
+    description: "Executar ações no computador através de uma ponte local segura.",
     permission: "sensitive",
     status: "offline",
     requiresConfirmation: true,
