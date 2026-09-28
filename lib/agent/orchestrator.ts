@@ -1,32 +1,66 @@
 import { randomUUID } from "crypto";
-import { registryForPrompt, getTool } from "./tool-registry";
+import { getTool, registryForPrompt } from "./tool-registry";
 import { askGemini } from "./gemini";
 import type { AgentPlan, AgentResult } from "./types";
 
-const MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-5";
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-5";
 
-function extractJson(text: string): AgentPlan {
+type Provider = "auto" | "claude" | "gemini";
+
+function parsePlan(text: string): AgentPlan {
   const cleaned = text
-    .replace(/^\`\`\`json\s*/i, "")
-    .replace(/\s*\`\`\`$/i, "")
+    .replace(/^\s*\`\`\`json\s*/i, "")
+    .replace(/\s*\`\`\`\s*$/i, "")
     .trim();
 
-  const parsed = JSON.parse(cleaned);
+  let parsed: unknown;
 
-  if (!parsed || typeof parsed.objective !== "string" || !Array.isArray(parsed.steps)) {
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+
+    if (start < 0 || end <= start) {
+      throw new Error("O modelo não retornou um plano JSON válido.");
+    }
+
+    try {
+      parsed = JSON.parse(cleaned.slice(start, end + 1));
+    } catch {
+      throw new Error("O modelo retornou JSON inválido.");
+    }
+  }
+
+  if (
+    !parsed ||
+    typeof parsed !== "object" ||
+    typeof (parsed as { objective?: unknown }).objective !== "string" ||
+    !Array.isArray((parsed as { steps?: unknown }).steps)
+  ) {
     throw new Error("O modelo retornou um plano em formato inválido.");
   }
 
+  const data = parsed as {
+    objective: string;
+    steps: unknown[];
+    notes?: unknown;
+  };
+
   return {
-    objective: parsed.objective,
-    steps: parsed.steps.map((step: any) => ({
-      id: typeof step.id === "string" ? step.id : randomUUID(),
-      action: String(step.action || ""),
-      tool: typeof step.tool === "string" ? step.tool : undefined,
-      reason: String(step.reason || ""),
-      requiresConfirmation: Boolean(step.requiresConfirmation),
-    })),
-    notes: Array.isArray(parsed.notes) ? parsed.notes.map(String) : [],
+    objective: data.objective,
+    steps: data.steps.map((item) => {
+      const step = (item || {}) as Record<string, unknown>;
+
+      return {
+        id: typeof step.id === "string" ? step.id : randomUUID(),
+        action: String(step.action || ""),
+        tool: typeof step.tool === "string" ? step.tool : undefined,
+        reason: String(step.reason || ""),
+        requiresConfirmation: Boolean(step.requiresConfirmation),
+      };
+    }),
+    notes: Array.isArray(data.notes) ? data.notes.map(String) : [],
   };
 }
 
@@ -34,19 +68,65 @@ function getToolStatus(toolName: string): "ready" | "planned" | "offline" {
   return getTool(toolName)?.status || "offline";
 }
 
-export async function planTask(
+async function askClaude(
   prompt: string,
-  provider: "auto" | "claude" | "gemini" = "auto"
-): Promise<AgentResult> {
+  system: string
+): Promise<{ text: string; model: string }> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
-  const system = [
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY não configurada.");
+  }
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 2500,
+      system,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    const message =
+      data?.error?.message || `Claude respondeu HTTP ${response.status}.`;
+    throw new Error(message);
+  }
+
+  const text = Array.isArray(data?.content)
+    ? data.content
+        .filter((block: { type?: string }) => block.type === "text")
+        .map((block: { text?: string }) => block.text || "")
+        .join("\n")
+        .trim()
+    : "";
+
+  if (!text) {
+    throw new Error("Claude não retornou texto.");
+  }
+
+  return {
+    text,
+    model: data?.model || CLAUDE_MODEL,
+  };
+}
+
+function buildSystemPrompt(): string {
+  return [
     "Você é o planejador central do agente Augurio.",
     "Transforme a solicitação do usuário em um plano operacional mínimo e verificável.",
     "Não alegue execução de ações externas. Você está planejando, não executando.",
     "Use somente ferramentas presentes no Tool Registry.",
-    "Se uma ferramenta estiver planned ou offline, marque a etapa como bloqueada por dependência e não invente que ela foi usada.",
-    "A resposta DEVE ser somente JSON válido, sem markdown.",
+    "Se uma ferramenta estiver planned ou offline, marque a dependência e não invente que ela foi usada.",
+    "A resposta deve ser somente JSON válido, sem markdown.",
     "",
     "Tool Registry:",
     registryForPrompt(),
@@ -54,64 +134,63 @@ export async function planTask(
     "Formato obrigatório:",
     '{"objective":"...","steps":[{"id":"1","action":"...","tool":"claude","reason":"...","requiresConfirmation":false}],"notes":["..."]}',
   ].join("\n");
+}
 
+export async function planTask(
+  prompt: string,
+  provider: Provider = "auto"
+): Promise<AgentResult> {
+  const system = buildSystemPrompt();
   let text = "";
   let modelUsed = "";
+  const attempts: string[] = [];
 
-  if ((provider === "auto" || provider === "claude") && apiKey) {
+  if (provider === "auto" || provider === "claude") {
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          max_tokens: 2500,
-          system,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        text = Array.isArray(data?.content)
-          ? data.content
-              .filter((block: { type?: string }) => block.type === "text")
-              .map((block: { text?: string }) => block.text || "")
-              .join("\n")
-              .trim()
-          : "";
-
-        modelUsed = data?.model || MODEL;
-      }
-    } catch {
-      // Fallback to Gemini below.
+      const result = await askClaude(prompt, system);
+      text = result.text;
+      modelUsed = result.model;
+      attempts.push(`Claude: sucesso (${result.model})`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "erro desconhecido";
+      attempts.push(`Claude: falhou — ${message}`);
     }
   }
 
-  if (!text && (provider === "auto" || provider === "gemini") && process.env.GEMINI_API_KEY) {
-    const result = await askGemini(prompt, system);
-    text = result.text;
-    modelUsed = result.model;
+  if (!text && (provider === "auto" || provider === "gemini")) {
+    try {
+      const result = await askGemini(prompt, system);
+      text = result.text;
+      modelUsed = result.model;
+      attempts.push(`Gemini: sucesso (${result.model})`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "erro desconhecido";
+      attempts.push(`Gemini: falhou — ${message}`);
+    }
   }
 
   if (!text) {
-    if (!apiKey && !process.env.GEMINI_API_KEY) {
-      throw new Error("Nenhum modelo configurado. Adicione ANTHROPIC_API_KEY ou GEMINI_API_KEY.");
+    if (!process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY) {
+      throw new Error(
+        "Nenhum modelo configurado. Adicione ANTHROPIC_API_KEY ou GEMINI_API_KEY."
+      );
     }
 
-    throw new Error("Os modelos configurados não retornaram um plano.");
+    throw new Error(
+      `Nenhum modelo conseguiu gerar um plano. ${attempts.join(" | ")}`
+    );
   }
 
-  const plan = extractJson(text);
+  const plan = parsePlan(text);
 
   const blockers = plan.steps
-    .filter((step) => step.tool && getToolStatus(step.tool) !== "ready")
-    .map((step) => `Ferramenta "${step.tool}" ainda não está operacional.`);
+    .filter(
+      (step) => Boolean(step.tool) && getToolStatus(step.tool as string) !== "ready"
+    )
+    .map(
+      (step) =>
+        `Ferramenta "${step.tool}" ainda não está operacional.`
+    );
 
   return {
     objective: plan.objective,
@@ -120,6 +199,7 @@ export async function planTask(
     plan,
     evidence: [
       `Plano gerado pelo modelo ${modelUsed}.`,
+      ...attempts,
       "Nenhuma ação externa foi declarada como executada sem ferramenta operacional.",
     ],
     blockers: [...new Set(blockers)],
