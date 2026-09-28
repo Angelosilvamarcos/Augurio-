@@ -1,9 +1,9 @@
-const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+const DEFAULT_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 
 const FALLBACK_MODELS = [
   DEFAULT_MODEL,
   "gemini-3.7-flash",
-  "gemini-3.5-flash-lite",
+  "gemini-3.6-flash",
 ].filter((model, index, list) => list.indexOf(model) === index);
 
 function wait(ms: number) {
