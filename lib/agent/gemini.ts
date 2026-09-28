@@ -6,7 +6,19 @@ const FALLBACK_MODELS = [
   "gemini-3.6-flash",
 ].filter((model, index, list) => list.indexOf(model) === index);
 
-function wait(ms: number) {
+type GeminiResponse = {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{ text?: string }>;
+    };
+  }>;
+  modelVersion?: string;
+  error?: {
+    message?: string;
+  };
+};
+
+function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -40,43 +52,46 @@ export async function askGemini(
               contents: [{ role: "user", parts: [{ text: prompt }] }],
               generationConfig: {
                 maxOutputTokens: 2500,
+                temperature: 0.2,
               },
             }),
           }
         );
 
-        const data = await response.json();
+        const data = (await response.json()) as GeminiResponse;
 
         if (response.ok) {
-          const text = data?.candidates?.[0]?.content?.parts
-            ?.map((part: { text?: string }) => part.text || "")
+          const text = (data.candidates?.[0]?.content?.parts || [])
+            .map((part) => part.text || "")
             .join("")
             .trim();
 
-          if (!text) {
-            throw new Error("Gemini não retornou texto.");
+          if (text) {
+            return {
+              text,
+              model: data.modelVersion || model,
+            };
           }
 
-          return {
-            text,
-            model: data?.modelVersion || model,
-          };
+          lastError = "Gemini não retornou texto.";
+        } else {
+          lastError =
+            data.error?.message || `Erro Gemini HTTP ${response.status}.`;
         }
 
-        lastError = data?.error?.message || `Erro Gemini HTTP ${response.status}.`;
-
-        // 503/429 podem ser indisponibilidade/capacidade temporária.
-        // Fazemos uma segunda tentativa antes de trocar de modelo.
-        if (response.status === 503 || response.status === 429) {
+        if (response.status === 429 || response.status === 503) {
           await wait(attempt === 0 ? 800 : 1600);
           continue;
         }
 
-        throw new Error(lastError);
+        break;
       } catch (error) {
         lastError = error instanceof Error ? error.message : lastError;
 
-        if (attempt === 0 && /high demand|overload|unavailable|503|429/i.test(lastError)) {
+        if (
+          attempt === 0 &&
+          /high demand|overload|unavailable|timeout|503|429/i.test(lastError)
+        ) {
           await wait(800);
           continue;
         }
@@ -86,5 +101,7 @@ export async function askGemini(
     }
   }
 
-  throw new Error(`Gemini indisponível após tentativas e modelos alternativos: ${lastError}`);
+  throw new Error(
+    `Gemini indisponível após tentar ${FALLBACK_MODELS.join(", ")}: ${lastError}`
+  );
 }
