@@ -6,7 +6,7 @@ const FALLBACK_MODELS = [
   "gemini-3.6-flash",
 ].filter((model, index, list) => list.indexOf(model) === index);
 
-const REQUEST_TIMEOUT_MS = 2500;
+const REQUEST_TIMEOUT_MS = 8000;
 
 type GeminiResponse = {
   candidates?: Array<{
