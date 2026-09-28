@@ -42,7 +42,7 @@ export default function Home() {
   const [message, setMessage] = useState("");
   const [model, setModel] = useState("");
 
-  async function run() {
+  async function run(provider: "auto" | "gemini" = "auto") {
     if (!prompt.trim() || running) return;
 
     setRunning(true);
@@ -53,7 +53,7 @@ export default function Home() {
       const response = await fetch("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt, provider }),
       });
 
       const data = await response.json();
@@ -63,7 +63,7 @@ export default function Home() {
       }
 
       setMessage(formatResult(data));
-      setModel("Augurio Orchestrator");
+      setModel(data?.model ? `Modelo: ${data.model}` : "Augurio Orchestrator");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Erro inesperado.");
     } finally {
@@ -85,7 +85,7 @@ export default function Home() {
         <div style={{ height: 28 }} />
         <div className="status">
           <span className="dot" /> Núcleo online<br />
-          <span style={{ marginLeft: 14 }}>Claude conectado</span>
+          <span style={{ marginLeft: 14 }}>Claude + Gemini configurados</span>
         </div>
       </aside>
 
@@ -95,7 +95,7 @@ export default function Home() {
             <div className="eyebrow">Agente adaptativo</div>
             <div className="title">O que você quer que eu faça?</div>
             <div className="muted">
-              Descreva a tarefa. O Augurio envia a solicitação ao Claude e prepara a próxima etapa de execução.
+              Descreva a tarefa. O Model Router escolhe o modelo disponível e prepara a próxima etapa de execução.
             </div>
           </div>
           <ShieldCheck size={28} color="#69b7ff" />
@@ -149,7 +149,7 @@ export default function Home() {
               <h3>Estado do sistema</h3>
               <div className="metric"><span>Model Router</span><b>Ativo</b></div>
               <div className="metric"><span>Claude</span><b>Conectado</b></div>
-              <div className="metric"><span>Gemini</span><span className="muted">Próximo</span></div>
+              <div className="metric"><span>Gemini</span><b>Configurado</b></div>
               <div className="metric"><span>GitHub</span><b>Disponível</b></div>
               <div className="metric"><span>Local Agent</span><span className="muted">Offline</span></div>
             </div>
