@@ -30,7 +30,7 @@ function getToolStatus(toolName: string): "ready" | "planned" | "offline" {
   return getTool(toolName)?.status || "offline";
 }
 
-export async function planTask(prompt: string): Promise<AgentResult> {
+export async function planTask(prompt: string, provider: "auto" | "claude" | "gemini" = "auto"): Promise<AgentResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
   const system = [
@@ -51,7 +51,7 @@ export async function planTask(prompt: string): Promise<AgentResult> {
   let text = "";
   let modelUsed = "";
 
-  if (apiKey) {
+  if ((provider === "auto" || provider === "claude") && apiKey) {
     try {
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -85,7 +85,7 @@ export async function planTask(prompt: string): Promise<AgentResult> {
     }
   }
 
-  if (!text && process.env.GEMINI_API_KEY) {
+  if (!text && (provider === "auto" || provider === "gemini") && process.env.GEMINI_API_KEY) {
     const result = await askGemini(prompt, system);
     text = result.text;
     modelUsed = result.model;
@@ -105,7 +105,7 @@ export async function planTask(prompt: string): Promise<AgentResult> {
 
   return {
     objective: plan.objective,
-    status: blockers.length ? "blocked" : "planned",
+    status: blockers.length ? "blocked" : "planned",\n    model: modelUsed,
     plan,
     evidence: [
       `Plano gerado pelo modelo ${modelUsed}.`,
