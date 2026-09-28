@@ -6,6 +6,8 @@ const FALLBACK_MODELS = [
   "gemini-3.6-flash",
 ].filter((model, index, list) => list.indexOf(model) === index);
 
+const REQUEST_TIMEOUT_MS = 2500;
+
 type GeminiResponse = {
   candidates?: Array<{
     content?: {
@@ -17,10 +19,6 @@ type GeminiResponse = {
     message?: string;
   };
 };
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 export async function askGemini(
   prompt: string,
@@ -35,73 +33,66 @@ export async function askGemini(
   let lastError = "Erro ao consultar a API Gemini.";
 
   for (const model of FALLBACK_MODELS) {
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-          {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-              "x-goog-api-key": apiKey,
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+          body: JSON.stringify({
+            systemInstruction: system
+              ? { parts: [{ text: system }] }
+              : undefined,
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: {
+              maxOutputTokens: 2500,
+              temperature: 0.2,
             },
-            body: JSON.stringify({
-              systemInstruction: system
-                ? { parts: [{ text: system }] }
-                : undefined,
-              contents: [{ role: "user", parts: [{ text: prompt }] }],
-              generationConfig: {
-                maxOutputTokens: 2500,
-                temperature: 0.2,
-              },
-            }),
-          }
-        );
+          }),
+        }
+      );
 
-        const data = (await response.json()) as GeminiResponse;
+      const data = (await response.json()) as GeminiResponse;
 
-        if (response.ok) {
-          const text = (data.candidates?.[0]?.content?.parts || [])
-            .map((part) => part.text || "")
-            .join("")
-            .trim();
+      if (response.ok) {
+        const text = (data.candidates?.[0]?.content?.parts || [])
+          .map((part) => part.text || "")
+          .join("")
+          .trim();
 
-          if (text) {
-            return {
-              text,
-              model: data.modelVersion || model,
-            };
-          }
-
-          lastError = "Gemini não retornou texto.";
-        } else {
-          lastError =
-            data.error?.message || `Erro Gemini HTTP ${response.status}.`;
+        if (text) {
+          return {
+            text,
+            model: data.modelVersion || model,
+          };
         }
 
-        if (response.status === 429 || response.status === 503) {
-          await wait(attempt === 0 ? 800 : 1600);
-          continue;
-        }
-
-        break;
-      } catch (error) {
-        lastError = error instanceof Error ? error.message : lastError;
-
-        if (
-          attempt === 0 &&
-          /high demand|overload|unavailable|timeout|503|429/i.test(lastError)
-        ) {
-          await wait(800);
-          continue;
-        }
-
-        break;
+        lastError = "Gemini não retornou texto.";
+      } else {
+        lastError =
+          data.error?.message || `Erro Gemini HTTP ${response.status}.`;
       }
+
+      // Um modelo indisponível não deve travar a tarefa.
+      // O Router passa imediatamente ao próximo modelo.
+      if (response.status === 429 || response.status === 503) {
+        continue;
+      }
+
+      break;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : lastError;
+      // Timeout, indisponibilidade de rede ou erro transitório:
+      // tenta o próximo modelo sem bloquear a execução.
+      continue;
     }
   }
 
   throw new Error(
-    `Gemini indisponível após tentar ${FALLBACK_MODELS.join(", ")}: ${lastError}`
+    `Gemini indisponível após testar ${FALLBACK_MODELS.join(", ")}: ${lastError}`
   );
 }
