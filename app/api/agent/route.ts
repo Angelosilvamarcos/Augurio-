@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { planTask } from "../../../lib/agent/orchestrator";
+import { saveAgentTask, recordAgentEvent } from "../../../lib/agent/memory";
 
 export async function POST(request: Request) {
   try {
@@ -19,12 +20,37 @@ export async function POST(request: Request) {
 
     const result = await planTask(prompt, provider);
 
-    return NextResponse.json(result);
+    let taskId: string | null = null;
+
+    if (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      try {
+        taskId = await saveAgentTask({
+          objective: result.objective,
+          prompt,
+          model: result.model,
+          plan: result.plan,
+          status: result.status,
+        });
+
+        await recordAgentEvent({
+          taskId,
+          eventType: "plan_created",
+          message: `Plano criado pelo modelo ${result.model}.`,
+          metadata: { provider, blockers: result.blockers },
+        });
+      } catch (memoryError) {
+        const memoryMessage =
+          memoryError instanceof Error ? memoryError.message : "Falha desconhecida de memória.";
+        result.evidence = [...result.evidence, `Memória Supabase: falhou — ${memoryMessage}`];
+      }
+    }
+
+    return NextResponse.json({ ...result, taskId });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Erro inesperado no Orchestrator.";
 
-    const status = message.includes("ANTHROPIC_API_KEY") ? 503 : 502;
+    const status = message.includes("não configurada") ? 503 : 502;
     return NextResponse.json({ error: message }, { status });
   }
 }
