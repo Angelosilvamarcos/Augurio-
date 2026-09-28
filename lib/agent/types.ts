@@ -26,7 +26,8 @@ export interface AgentPlan {
 
 export interface AgentResult {
   objective: string;
-  status: "planned" | "blocked" | "completed";\n  model: string;
+  status: "planned" | "blocked" | "completed";
+  model: string;
   plan: AgentPlan;
   evidence: string[];
   blockers: string[];
