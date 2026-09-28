@@ -6,7 +6,11 @@ import type { AgentPlan, AgentResult } from "./types";
 const MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-5";
 
 function extractJson(text: string): AgentPlan {
-  const cleaned = text.replace(/^\`\`\`json\s*/i, "").replace(/\s*\`\`\`$/i, "").trim();
+  const cleaned = text
+    .replace(/^\`\`\`json\s*/i, "")
+    .replace(/\s*\`\`\`$/i, "")
+    .trim();
+
   const parsed = JSON.parse(cleaned);
 
   if (!parsed || typeof parsed.objective !== "string" || !Array.isArray(parsed.steps)) {
@@ -30,7 +34,10 @@ function getToolStatus(toolName: string): "ready" | "planned" | "offline" {
   return getTool(toolName)?.status || "offline";
 }
 
-export async function planTask(prompt: string, provider: "auto" | "claude" | "gemini" = "auto"): Promise<AgentResult> {
+export async function planTask(
+  prompt: string,
+  provider: "auto" | "claude" | "gemini" = "auto"
+): Promise<AgentResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
   const system = [
@@ -78,6 +85,7 @@ export async function planTask(prompt: string, provider: "auto" | "claude" | "ge
               .join("\n")
               .trim()
           : "";
+
         modelUsed = data?.model || MODEL;
       }
     } catch {
@@ -95,17 +103,20 @@ export async function planTask(prompt: string, provider: "auto" | "claude" | "ge
     if (!apiKey && !process.env.GEMINI_API_KEY) {
       throw new Error("Nenhum modelo configurado. Adicione ANTHROPIC_API_KEY ou GEMINI_API_KEY.");
     }
+
     throw new Error("Os modelos configurados não retornaram um plano.");
   }
 
   const plan = extractJson(text);
+
   const blockers = plan.steps
     .filter((step) => step.tool && getToolStatus(step.tool) !== "ready")
     .map((step) => `Ferramenta "${step.tool}" ainda não está operacional.`);
 
   return {
     objective: plan.objective,
-    status: blockers.length ? "blocked" : "planned",\n    model: modelUsed,
+    status: blockers.length ? "blocked" : "planned",
+    model: modelUsed,
     plan,
     evidence: [
       `Plano gerado pelo modelo ${modelUsed}.`,
