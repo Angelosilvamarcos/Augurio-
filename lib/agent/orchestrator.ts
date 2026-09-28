@@ -1,16 +1,16 @@
 import { randomUUID } from "crypto";
-import { registryForPrompt } from "./tool-registry";
+import { registryForPrompt, getTool } from "./tool-registry";
 import { askGemini } from "./gemini";
 import type { AgentPlan, AgentResult } from "./types";
 
 const MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-5";
 
 function extractJson(text: string): AgentPlan {
-  const cleaned = text.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
+  const cleaned = text.replace(/^\`\`\`json\s*/i, "").replace(/\s*\`\`\`$/i, "").trim();
   const parsed = JSON.parse(cleaned);
 
   if (!parsed || typeof parsed.objective !== "string" || !Array.isArray(parsed.steps)) {
-    throw new Error("Claude retornou um plano em formato inválido.");
+    throw new Error("O modelo retornou um plano em formato inválido.");
   }
 
   return {
@@ -24,6 +24,10 @@ function extractJson(text: string): AgentPlan {
     })),
     notes: Array.isArray(parsed.notes) ? parsed.notes.map(String) : [],
   };
+}
+
+function getToolStatus(toolName: string): "ready" | "planned" | "offline" {
+  return getTool(toolName)?.status || "offline";
 }
 
 export async function planTask(prompt: string): Promise<AgentResult> {
@@ -96,7 +100,7 @@ export async function planTask(prompt: string): Promise<AgentResult> {
 
   const plan = extractJson(text);
   const blockers = plan.steps
-    .filter((step) => step.tool && !["ready"].includes(requireStatus(step.tool)))
+    .filter((step) => step.tool && getToolStatus(step.tool) !== "ready")
     .map((step) => `Ferramenta "${step.tool}" ainda não está operacional.`);
 
   return {
@@ -110,4 +114,3 @@ export async function planTask(prompt: string): Promise<AgentResult> {
     blockers: [...new Set(blockers)],
   };
 }
-
