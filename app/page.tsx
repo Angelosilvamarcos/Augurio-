@@ -18,6 +18,24 @@ const tools = [
   ["MCP", "Ferramentas externas", "Disponível"],
 ];
 
+function formatResult(data: any): string {
+  if (!data?.plan) return data?.response || "Augurio concluiu a etapa.";
+  const lines = [
+    `Status: ${data.status}`,
+    "",
+    `Objetivo: ${data.objective}`,
+    "",
+    "Plano:",
+    ...data.plan.steps.map((step: any, index: number) =>
+      `${index + 1}. ${step.action}${step.tool ? ` [${step.tool}]` : ""}${step.requiresConfirmation ? " — confirmação necessária" : ""}`
+    ),
+  ];
+  if (data.blockers?.length) {
+    lines.push("", "Dependências:", ...data.blockers.map((item: string) => `• ${item}`));
+  }
+  return lines.join("\n");
+}
+
 export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [running, setRunning] = useState(false);
@@ -28,11 +46,11 @@ export default function Home() {
     if (!prompt.trim() || running) return;
 
     setRunning(true);
-    setMessage("Claude está analisando a tarefa…");
+    setMessage("Augurio está planejando a execução…");
     setModel("");
 
     try {
-      const response = await fetch("/api/claude", {
+      const response = await fetch("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
@@ -44,8 +62,8 @@ export default function Home() {
         throw new Error(data?.error || "Falha na comunicação com Claude.");
       }
 
-      setMessage(data.response);
-      setModel(data.model || "Claude");
+      setMessage(formatResult(data));
+      setModel("Augurio Orchestrator");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Erro inesperado.");
     } finally {
