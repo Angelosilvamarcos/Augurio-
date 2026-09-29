@@ -1,12 +1,13 @@
 import { randomUUID } from "crypto";
 import { getTool, registryForPrompt } from "./tool-registry";
 import { askGemini } from "./gemini";
+import { askOpenAI } from "./openai";
 import { askGrok } from "./grok";
 import type { AgentPlan, AgentResult } from "./types";
 
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-5";
 
-type Provider = "auto" | "claude" | "gemini" | "grok";
+type Provider = "auto" | "openai" | "claude" | "gemini" | "grok";
 
 function parsePlan(text: string): AgentPlan {
   const cleaned = text
@@ -146,7 +147,19 @@ export async function planTask(
   let modelUsed = "";
   const attempts: string[] = [];
 
-  if (provider === "auto" || provider === "claude") {
+  if (provider === "auto" || provider === "openai") {
+    try {
+      const result = await askOpenAI(prompt, system);
+      text = result.text;
+      modelUsed = result.model;
+      attempts.push(`OpenAI: sucesso (${result.model})`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "erro desconhecido";
+      attempts.push(`OpenAI: falhou — ${message}`);
+    }
+  }
+
+  if (!text && (provider === "auto" || provider === "claude")) {
     try {
       const result = await askClaude(prompt, system);
       text = result.text;
@@ -183,9 +196,9 @@ export async function planTask(
   }
 
   if (!text) {
-    if (!process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY && !process.env.XAI_API_KEY) {
+    if (!process.env.OPENAI_API_KEY && !process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY && !process.env.XAI_API_KEY) {
       throw new Error(
-        "Nenhum modelo configurado. Adicione ANTHROPIC_API_KEY, GEMINI_API_KEY ou XAI_API_KEY."
+        "Nenhum modelo configurado. Adicione OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY ou XAI_API_KEY."
       );
     }
 
