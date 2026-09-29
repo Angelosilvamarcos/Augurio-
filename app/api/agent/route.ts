@@ -7,7 +7,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
     const provider =
-      body?.provider === "claude" || body?.provider === "gemini" || body?.provider === "grok"
+      body?.provider === "openai" || body?.provider === "claude" || body?.provider === "gemini" || body?.provider === "grok"
         ? body.provider
         : "auto";
 
