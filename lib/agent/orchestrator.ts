@@ -1,11 +1,12 @@
 import { randomUUID } from "crypto";
 import { getTool, registryForPrompt } from "./tool-registry";
 import { askGemini } from "./gemini";
+import { askGrok } from "./grok";
 import type { AgentPlan, AgentResult } from "./types";
 
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-5";
 
-type Provider = "auto" | "claude" | "gemini";
+type Provider = "auto" | "claude" | "gemini" | "grok";
 
 function parsePlan(text: string): AgentPlan {
   const cleaned = text
@@ -157,6 +158,18 @@ export async function planTask(
     }
   }
 
+  if (!text && (provider === "auto" || provider === "grok")) {
+    try {
+      const result = await askGrok(prompt, system);
+      text = result.text;
+      modelUsed = result.model;
+      attempts.push(`Grok: sucesso (${result.model})`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "erro desconhecido";
+      attempts.push(`Grok: falhou — ${message}`);
+    }
+  }
+
   if (!text && (provider === "auto" || provider === "gemini")) {
     try {
       const result = await askGemini(prompt, system);
@@ -170,9 +183,9 @@ export async function planTask(
   }
 
   if (!text) {
-    if (!process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY) {
+    if (!process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY && !process.env.XAI_API_KEY) {
       throw new Error(
-        "Nenhum modelo configurado. Adicione ANTHROPIC_API_KEY ou GEMINI_API_KEY."
+        "Nenhum modelo configurado. Adicione ANTHROPIC_API_KEY, GEMINI_API_KEY ou XAI_API_KEY."
       );
     }
 
