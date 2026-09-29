@@ -8,6 +8,12 @@ const registry: ToolDefinition[] = [
     status: "ready",
   },
   {
+    name: "grok",
+    description: "Modelo adicional para raciocínio, continuidade e recuperação.",
+    permission: "read",
+    status: "ready",
+  },
+  {
     name: "gemini",
     description: "Modelo secundário para continuidade e recuperação.",
     permission: "read",
