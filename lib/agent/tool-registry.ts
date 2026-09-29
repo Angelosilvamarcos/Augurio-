@@ -2,6 +2,12 @@ import type { ToolDefinition } from "./types";
 
 const registry: ToolDefinition[] = [
   {
+    name: "openai",
+    description: "Modelo principal para raciocínio, planejamento e execução orientada a ferramentas.",
+    permission: "read",
+    status: "ready",
+  },
+  {
     name: "claude",
     description: "Raciocínio, planejamento, análise e síntese.",
     permission: "read",
