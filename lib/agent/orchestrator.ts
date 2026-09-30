@@ -3,11 +3,12 @@ import { getTool, registryForPrompt } from "./tool-registry";
 import { askGemini } from "./gemini";
 import { askOpenAI } from "./openai";
 import { askGrok } from "./grok";
+import { askFreeLLMAPI, isFreeLLMAPIConfigured } from "./freellmapi";
 import type { AgentPlan, AgentResult } from "./types";
 
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-5";
 
-type Provider = "auto" | "openai" | "claude" | "gemini" | "grok";
+type Provider = "auto" | "freellmapi" | "openai" | "claude" | "gemini" | "grok";
 
 function parsePlan(text: string): AgentPlan {
   const cleaned = text
@@ -147,7 +148,29 @@ export async function planTask(
   let modelUsed = "";
   const attempts: string[] = [];
 
-  if (provider === "auto" || provider === "openai") {
+  if (
+    (provider === "auto" || provider === "freellmapi") &&
+    isFreeLLMAPIConfigured()
+  ) {
+    try {
+      const result = await askFreeLLMAPI(prompt, system);
+      text = result.text;
+      modelUsed = `FreeLLMAPI → ${result.model}`;
+      attempts.push(`FreeLLMAPI: sucesso (${result.model})`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "erro desconhecido";
+      attempts.push(`FreeLLMAPI: falhou — ${message}`);
+      if (provider === "freellmapi") throw error;
+    }
+  }
+
+  if (provider === "freellmapi" && !text) {
+    throw new Error(
+      "FreeLLMAPI não está configurado. Defina FREELLMAPI_BASE_URL e FREELLMAPI_API_KEY."
+    );
+  }
+
+  if (!text && (provider === "auto" || provider === "openai")) {
     try {
       const result = await askOpenAI(prompt, system);
       text = result.text;
@@ -198,7 +221,7 @@ export async function planTask(
   if (!text) {
     if (!process.env.OPENAI_API_KEY && !process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY && !process.env.XAI_API_KEY) {
       throw new Error(
-        "Nenhum modelo configurado. Adicione OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY ou XAI_API_KEY."
+        "Nenhum modelo configurado. Configure o FreeLLMAPI ou uma chave de provedor direto."
       );
     }
 
