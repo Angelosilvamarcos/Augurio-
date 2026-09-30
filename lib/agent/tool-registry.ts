@@ -2,6 +2,12 @@ import type { ToolDefinition } from "./types";
 
 const registry: ToolDefinition[] = [
   {
+    name: "freellmapi",
+    description: "Gateway de modelos que agrega provedores gratuitos, faz roteamento e failover entre modelos.",
+    permission: "read",
+    status: "ready",
+  },
+  {
     name: "openai",
     description: "Modelo principal para raciocínio, planejamento e execução orientada a ferramentas.",
     permission: "read",
