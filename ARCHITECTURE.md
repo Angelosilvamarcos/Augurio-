@@ -3,7 +3,7 @@
 ## Core
 - Next.js web application
 - Orchestrator: task intake, planning, execution loop, validation and recovery
-- Model Router: Claude primary, Gemini secondary, future providers
+- Model Gateway: FreeLLMAPI as the preferred multi-provider router, with direct provider fallback for resilience
 - Tool Registry: typed capabilities with permissions, timeout, retry and audit metadata
 - Memory: task context and durable preferences through Supabase in the next phase
 - Local Agent: future secure bridge for browser, files and terminal
