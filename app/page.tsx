@@ -15,7 +15,8 @@ const toolInfo = [
 ];
 
 function formatResult(data: any): string {
-  if (!data?.plan) return data?.response || "Augurio concluiu a etapa.";
+  if (data?.response) return [data.status ? `Status: ${data.status}` : "", data.response].filter(Boolean).join("\n\n");
+  if (!data?.plan) return "Augurio concluiu a etapa.";
   return [
     `Status: ${data.status}`, "",
     `Objetivo: ${data.objective}`, "",
