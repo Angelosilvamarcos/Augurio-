@@ -47,6 +47,30 @@ export async function recordModelAttempt(input: {
   if (error) throw new Error(`Falha ao registrar tentativa de modelo: ${error.message}`);
 }
 
+export async function listAgentTasks(limit = 30) {
+  const supabase = getSupabaseServer();
+  const { data, error } = await supabase
+    .from("agent_tasks")
+    .select("id, objective, prompt, model, status, current_step, created_at, updated_at")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(`Falha ao ler tarefas no Supabase: ${error.message}`);
+  return data || [];
+}
+
+export async function listAgentEvents(limit = 50) {
+  const supabase = getSupabaseServer();
+  const { data, error } = await supabase
+    .from("agent_events")
+    .select("id, task_id, event_type, message, metadata, created_at")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(`Falha ao ler eventos no Supabase: ${error.message}`);
+  return data || [];
+}
+
 export async function recordAgentEvent(input: {
   taskId: string;
   eventType: string;
