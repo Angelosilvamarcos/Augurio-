@@ -139,6 +139,47 @@ function buildSystemPrompt(): string {
   ].join("\n");
 }
 
+async function executeWithProvider(
+  prompt: string,
+  plan: AgentPlan,
+  provider: Provider,
+  modelUsed: string
+): Promise<{ text: string; model: string }> {
+  const executionSystem = [
+    "Você é o executor do agente Augurio.",
+    "O planejamento abaixo já foi feito. Agora execute intelectualmente a tarefa do usuário e entregue o resultado final.",
+    "Não apenas descreva um plano. Resolva, calcule, analise ou produza o resultado solicitado.",
+    "Se a tarefa exigir uma ferramenta externa que não esteja operacional, explique a limitação em vez de inventar execução.",
+    "Mostre o raciocínio necessário de forma concisa e apresente uma resposta final clara.",
+    "",
+    `Tarefa do usuário: ${prompt}`,
+    `Plano: ${JSON.stringify(plan)}`,
+  ].join("\n");
+
+  if (provider === "gemini") return askGemini(prompt + "\n\nExecute este plano e entregue o resultado final.", executionSystem);
+  if (provider === "claude") return askClaude(prompt + "\n\nExecute este plano e entregue o resultado final.", executionSystem);
+  if (provider === "openai") return askOpenAI(prompt + "\n\nExecute este plano e entregue o resultado final.", executionSystem);
+  if (provider === "grok") return askGrok(prompt + "\n\nExecute este plano e entregue o resultado final.", executionSystem);
+  if (provider === "freellmapi") return askFreeLLMAPI(prompt + "\n\nExecute este plano e entregue o resultado final.", executionSystem);
+
+  const normalized = modelUsed.toLowerCase();
+  if (normalized.includes("gemini")) return askGemini(prompt, executionSystem);
+  if (normalized.includes("claude")) return askClaude(prompt, executionSystem);
+  if (normalized.includes("grok")) return askGrok(prompt, executionSystem);
+  if (normalized.includes("openai") || normalized.startsWith("gpt")) return askOpenAI(prompt, executionSystem);
+  if (normalized.includes("freellmapi")) return askFreeLLMAPI(prompt, executionSystem);
+  return askClaude(prompt, executionSystem);
+}
+
+export async function executeTask(
+  prompt: string,
+  plan: AgentPlan,
+  provider: Provider,
+  modelUsed: string
+): Promise<{ text: string; model: string }> {
+  return executeWithProvider(prompt, plan, provider, modelUsed);
+}
+
 export async function planTask(
   prompt: string,
   provider: Provider = "auto"
