@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { planTask } from "../../../lib/agent/orchestrator";
-import { saveAgentTask, recordAgentEvent } from "../../../lib/agent/memory";
+import { saveAgentTask, recordAgentEvent, recordModelAttempt } from "../../../lib/agent/memory";
 
 export async function POST(request: Request) {
   try {
@@ -30,6 +30,13 @@ export async function POST(request: Request) {
           model: result.model,
           plan: result.plan,
           status: result.status,
+        });
+
+        await recordModelAttempt({
+          taskId,
+          provider,
+          model: result.model,
+          status: "success",
         });
 
         await recordAgentEvent({
