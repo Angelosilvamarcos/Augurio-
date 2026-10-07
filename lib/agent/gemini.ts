@@ -6,7 +6,7 @@ const FALLBACK_MODELS = [
   "gemini-3.6-flash",
 ].filter((model, index, list) => list.indexOf(model) === index);
 
-const REQUEST_TIMEOUT_MS = 8000;
+const REQUEST_TIMEOUT_MS = 12000;
 
 type GeminiResponse = {
   candidates?: Array<{
@@ -50,7 +50,6 @@ export async function askGemini(
             contents: [{ role: "user", parts: [{ text: prompt }] }],
             generationConfig: {
               maxOutputTokens: 2500,
-              temperature: 0.2,
             },
           }),
         }
@@ -77,8 +76,6 @@ export async function askGemini(
           data.error?.message || `Erro Gemini HTTP ${response.status}.`;
       }
 
-      // Um modelo indisponível não deve travar a tarefa.
-      // O Router passa imediatamente ao próximo modelo.
       if (response.status === 429 || response.status === 503) {
         continue;
       }
@@ -86,8 +83,6 @@ export async function askGemini(
       break;
     } catch (error) {
       lastError = error instanceof Error ? error.message : lastError;
-      // Timeout, indisponibilidade de rede ou erro transitório:
-      // tenta o próximo modelo sem bloquear a execução.
       continue;
     }
   }
