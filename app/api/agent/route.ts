@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { planTask } from "../../../lib/agent/orchestrator";
 import { saveAgentTask, recordAgentEvent, recordModelAttempt } from "../../../lib/agent/memory";
+import { executeTask } from "../../../lib/agent/orchestrator";
 
 export async function POST(request: Request) {
   try {
@@ -20,6 +21,18 @@ export async function POST(request: Request) {
 
     const result = await planTask(prompt, provider);
 
+    let execution: { text: string; model: string } | null = null;
+    if (result.status !== "blocked") {
+      try {
+        execution = await executeTask(prompt, result.plan, provider, result.model);
+        result.status = "completed";
+        result.evidence = [...result.evidence, `Execução concluída pelo modelo ${execution.model}.`];
+      } catch (executionError) {
+        const message = executionError instanceof Error ? executionError.message : "Falha na execução.";
+        result.evidence = [...result.evidence, `Execução falhou: ${message}`];
+      }
+    }
+
     let taskId: string | null = null;
 
     if (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -36,7 +49,8 @@ export async function POST(request: Request) {
           taskId,
           provider,
           model: result.model,
-          status: "success",
+          status: execution ? "success" : "failed",
+          error: execution ? undefined : result.evidence.at(-1),
         });
 
         await recordAgentEvent({
@@ -52,7 +66,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ ...result, taskId });
+    return NextResponse.json({ ...result, response: execution?.text || null, executionModel: execution?.model || null, taskId });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Erro inesperado no Orchestrator.";
