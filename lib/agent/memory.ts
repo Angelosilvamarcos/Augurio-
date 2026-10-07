@@ -51,7 +51,7 @@ export async function listAgentTasks(limit = 30) {
   const supabase = getSupabaseServer();
   const { data, error } = await supabase
     .from("agent_tasks")
-    .select("id, objective, prompt, model, status, current_step, created_at, updated_at")
+    .select("id, objective, prompt, model, plan, status, current_step, created_at, updated_at")
     .order("created_at", { ascending: false })
     .limit(limit);
 
