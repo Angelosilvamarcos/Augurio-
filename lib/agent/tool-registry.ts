@@ -33,10 +33,9 @@ const registry: ToolDefinition[] = [
   },
   {
     name: "github",
-    description: "Ler e modificar repositórios, branches, commits e pull requests.",
-    permission: "write",
-    status: "planned",
-    requiresConfirmation: true,
+    description: "Ler arquivos e diretórios de repositórios GitHub; escrita será liberada posteriormente com confirmação explícita.",
+    permission: "read",
+    status: "ready",
   },
   {
     name: "web",
