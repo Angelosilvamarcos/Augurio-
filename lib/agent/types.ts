@@ -16,6 +16,7 @@ export interface AgentStep {
   tool?: string;
   reason: string;
   requiresConfirmation: boolean;
+  input?: Record<string, unknown>;
 }
 
 export interface AgentPlan {
