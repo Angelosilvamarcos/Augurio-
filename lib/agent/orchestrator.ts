@@ -4,6 +4,7 @@ import { askGemini } from "./gemini";
 import { askOpenAI } from "./openai";
 import { askGrok } from "./grok";
 import { askFreeLLMAPI, isFreeLLMAPIConfigured } from "./freellmapi";
+import { executeGitHubStep } from "./github";
 import type { AgentPlan, AgentResult } from "./types";
 
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-5";
@@ -61,6 +62,10 @@ function parsePlan(text: string): AgentPlan {
         tool: typeof step.tool === "string" ? step.tool : undefined,
         reason: String(step.reason || ""),
         requiresConfirmation: Boolean(step.requiresConfirmation),
+        input:
+          step.input && typeof step.input === "object"
+            ? (step.input as Record<string, unknown>)
+            : undefined,
       };
     }),
     notes: Array.isArray(data.notes) ? data.notes.map(String) : [],
@@ -135,7 +140,7 @@ function buildSystemPrompt(): string {
     registryForPrompt(),
     "",
     "Formato obrigatório:",
-    '{"objective":"...","steps":[{"id":"1","action":"...","tool":"claude","reason":"...","requiresConfirmation":false}],"notes":["..."]}',
+    '{"objective":"...","steps":[{"id":"1","action":"...","tool":"github","reason":"...","requiresConfirmation":false,"input":{"operation":"read_file","repository":"owner/repo","path":"README.md","ref":"main"}}],"notes":["..."]}',
   ].join("\n");
 }
 
@@ -177,6 +182,27 @@ export async function executeTask(
   provider: Provider,
   modelUsed: string
 ): Promise<{ text: string; model: string }> {
+  const toolSteps = plan.steps.filter((step) => step.tool);
+
+  for (const step of toolSteps) {
+    if (step.tool === "github") {
+      const result = await executeGitHubStep(step.input);
+      return {
+        text: [
+          `Ferramenta GitHub executada: ${result.summary}`,
+          "",
+          result.text,
+        ].join("\n"),
+        model: "tool:github",
+      };
+    }
+
+    const status = getToolStatus(step.tool as string);
+    if (status !== "ready") {
+      throw new Error(`A ferramenta "${step.tool}" ainda não está operacional.`);
+    }
+  }
+
   return executeWithProvider(prompt, plan, provider, modelUsed);
 }
 
