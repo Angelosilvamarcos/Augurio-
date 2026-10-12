@@ -184,23 +184,41 @@ export async function executeTask(
 ): Promise<{ text: string; model: string }> {
   const toolSteps = plan.steps.filter((step) => step.tool);
 
+  // Validate the whole plan before executing any external step, avoiding partial
+  // execution when a later step depends on a tool without an executor.
   for (const step of toolSteps) {
-    if (step.tool === "github") {
-      const result = await executeGitHubStep(step.input);
-      return {
-        text: [
-          `Ferramenta GitHub executada: ${result.summary}`,
-          "",
-          result.text,
-        ].join("\n"),
-        model: "tool:github",
-      };
-    }
+    if (step.tool === "github") continue;
 
     const status = getToolStatus(step.tool as string);
     if (status !== "ready") {
       throw new Error(`A ferramenta "${step.tool}" ainda não está operacional.`);
     }
+
+    throw new Error(
+      `A ferramenta "${step.tool}" está marcada como pronta, mas ainda não possui executor integrado.`
+    );
+  }
+
+  if (toolSteps.length > 0) {
+    const results: Array<{ summary: string; text: string }> = [];
+
+    for (const step of toolSteps) {
+      if (step.tool !== "github") continue;
+      results.push(await executeGitHubStep(step.input));
+    }
+
+    return {
+      text: results
+        .map((result, index) =>
+          [
+            `Etapa GitHub ${index + 1}: ${result.summary}`,
+            "",
+            result.text,
+          ].join("\n")
+        )
+        .join("\n\n---\n\n"),
+      model: "tool:github",
+    };
   }
 
   return executeWithProvider(prompt, plan, provider, modelUsed);
