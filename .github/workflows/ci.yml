@@ -32,6 +32,9 @@ jobs:
       - name: Check TypeScript
         run: npx tsc --noEmit
 
+      - name: Test sequential step execution
+        run: npm test
+
       - name: Build Next.js
         run: npm run build
         env:
