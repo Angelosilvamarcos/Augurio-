@@ -184,21 +184,6 @@ export async function executeTask(
 ): Promise<{ text: string; model: string; status: "completed" | "partial" }> {
   const toolSteps = plan.steps.filter((step) => step.tool);
 
-  // Validate the whole plan before executing any external step, avoiding partial
-  // execution when a later step depends on a tool without an executor.
-  for (const step of toolSteps) {
-    if (step.tool === "github") continue;
-
-    const status = getToolStatus(step.tool as string);
-    if (status !== "ready") {
-      throw new Error(`A ferramenta "${step.tool}" ainda não está operacional.`);
-    }
-
-    throw new Error(
-      `A ferramenta "${step.tool}" está marcada como pronta, mas ainda não possui executor integrado.`
-    );
-  }
-
   if (toolSteps.length > 0) {
     const outcomes: Array<{
       stepId: string;
@@ -256,7 +241,7 @@ export async function executeTask(
       "",
       `Estado da execução: ${status}. ${succeeded} de ${outcomes.length} etapas concluídas.`,
       "Produza uma síntese fiel. Não invente resultados, não oculte falhas e diferencie claramente evidências de inferências.",
-    ].join("\\n");
+    ].join("\n");
 
     try {
       const synthesis = await executeWithProvider(
@@ -273,8 +258,8 @@ export async function executeTask(
           [
             `Etapa ${item.stepId} (${item.tool}) — ${item.status.toUpperCase()}: ${item.summary}`,
             item.text || item.error || "",
-          ].filter(Boolean).join("\\n")
-        ).join("\\n\\n---\\n\\n"),
+          ].filter(Boolean).join("\n")
+        ).join("\n\n---\n\n"),
         model: "tool:github (síntese determinística)",
         status,
       };
@@ -378,18 +363,18 @@ export async function planTask(
 
   const plan = parsePlan(text);
 
-  const blockers = plan.steps
-    .filter(
-      (step) => Boolean(step.tool) && getToolStatus(step.tool as string) !== "ready"
-    )
-    .map(
-      (step) =>
-        `Ferramenta "${step.tool}" ainda não está operacional.`
-    );
+  const toolSteps = plan.steps.filter((step) => Boolean(step.tool));
+  const executableSteps = toolSteps.filter((step) => step.tool === "github");
+  const blockers = toolSteps
+    .filter((step) => step.tool !== "github")
+    .map((step) => {
+      const status = getToolStatus(step.tool as string);
+      return `Ferramenta "${step.tool}" indisponível para execução (status: ${status}; executor integrado: não).`;
+    });
 
   return {
     objective: plan.objective,
-    status: blockers.length ? "blocked" : "planned",
+    status: blockers.length > 0 && executableSteps.length === 0 ? "blocked" : "planned",
     model: modelUsed,
     plan,
     evidence: [
