@@ -5,6 +5,7 @@ import { askOpenAI } from "./openai";
 import { askGrok } from "./grok";
 import { askFreeLLMAPI, isFreeLLMAPIConfigured } from "./freellmapi";
 import { executeGitHubStep } from "./github";
+import { runStepsSequentially } from "./step-runner";
 import type { AgentPlan, AgentResult } from "./types";
 
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-5";
@@ -185,42 +186,21 @@ export async function executeTask(
   const toolSteps = plan.steps.filter((step) => step.tool);
 
   if (toolSteps.length > 0) {
-    const outcomes: Array<{
-      stepId: string;
-      tool: string;
-      status: "success" | "failed";
-      summary: string;
-      text?: string;
-      error?: string;
-    }> = [];
-
-    // Execute every step independently. A failure is recorded instead of
-    // discarding successful evidence collected by earlier steps.
-    for (const step of toolSteps) {
-      try {
-        if (step.tool !== "github") {
-          throw new Error(`A ferramenta "${step.tool}" não possui executor integrado.`);
-        }
-
-        const result = await executeGitHubStep(step.input);
-        outcomes.push({
-          stepId: step.id,
-          tool: step.tool,
-          status: "success",
-          summary: result.summary,
-          text: result.text,
-        });
-      } catch (error) {
-        outcomes.push({
-          stepId: step.id,
-          tool: step.tool || "desconhecida",
-          status: "failed",
-          summary: "A etapa não foi concluída.",
-          error: error instanceof Error ? error.message : "Falha desconhecida na execução.",
-        });
+    const stepOutcomes = await runStepsSequentially(toolSteps, async (step) => {
+      if (step.tool !== "github") {
+        throw new Error(`A ferramenta "${step.tool}" não possui executor integrado.`);
       }
-    }
+      return executeGitHubStep(step.input);
+    });
 
+    const outcomes = stepOutcomes.map(({ step, status, result, error }) => ({
+      stepId: step.id,
+      tool: step.tool || "desconhecida",
+      status,
+      summary: result?.summary || "A etapa não foi concluída.",
+      text: result?.text,
+      error,
+    }));
     const succeeded = outcomes.filter((item) => item.status === "success").length;
     const status = succeeded === outcomes.length ? "completed" : "partial";
     const evidence = outcomes
