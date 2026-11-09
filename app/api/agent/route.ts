@@ -21,11 +21,11 @@ export async function POST(request: Request) {
 
     const result = await planTask(prompt, provider);
 
-    let execution: { text: string; model: string } | null = null;
+    let execution: { text: string; model: string; status: "completed" | "partial" } | null = null;
     if (result.status !== "blocked") {
       try {
         execution = await executeTask(prompt, result.plan, provider, result.model);
-        result.status = "completed";
+        result.status = execution.status;
         result.evidence = [...result.evidence, `Execução concluída pelo modelo ${execution.model}.`];
       } catch (executionError) {
         const message = executionError instanceof Error ? executionError.message : "Falha na execução.";
