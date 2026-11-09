@@ -2,36 +2,6 @@ import type { ToolDefinition } from "./types";
 
 const registry: ToolDefinition[] = [
   {
-    name: "freellmapi",
-    description: "Gateway de modelos que agrega provedores gratuitos, faz roteamento e failover entre modelos.",
-    permission: "read",
-    status: "ready",
-  },
-  {
-    name: "openai",
-    description: "Modelo principal para raciocínio, planejamento e execução orientada a ferramentas.",
-    permission: "read",
-    status: "ready",
-  },
-  {
-    name: "claude",
-    description: "Raciocínio, planejamento, análise e síntese.",
-    permission: "read",
-    status: "ready",
-  },
-  {
-    name: "grok",
-    description: "Modelo adicional para raciocínio, continuidade e recuperação.",
-    permission: "read",
-    status: "ready",
-  },
-  {
-    name: "gemini",
-    description: "Modelo secundário para continuidade e recuperação.",
-    permission: "read",
-    status: "ready",
-  },
-  {
     name: "github",
     description: "Ler arquivos e diretórios de repositórios GitHub; escrita será liberada posteriormente com confirmação explícita.",
     permission: "read",

@@ -21,12 +21,12 @@ export async function POST(request: Request) {
 
     const result = await planTask(prompt, provider);
 
-    let execution: { text: string; model: string } | null = null;
+    let execution: { text: string; model: string; status: "completed" | "partial" } | null = null;
     if (result.status !== "blocked") {
       try {
         execution = await executeTask(prompt, result.plan, provider, result.model);
-        result.status = "completed";
-        result.evidence = [...result.evidence, `Execução concluída pelo modelo ${execution.model}.`];
+        result.status = execution.status;
+        result.evidence = [...result.evidence, execution.status === "completed" ? `Execução concluída com síntese de ${execution.model}.` : `Execução parcial com síntese de ${execution.model}. Consulte os resultados e falhas por etapa na resposta.`];
       } catch (executionError) {
         const message = executionError instanceof Error ? executionError.message : "Falha na execução.";
         result.evidence = [...result.evidence, `Execução falhou: ${message}`];

@@ -6,7 +6,7 @@ export async function saveAgentTask(input: {
   prompt: string;
   model: string;
   plan: AgentPlan;
-  status: "planned" | "blocked" | "completed";
+  status: "planned" | "blocked" | "completed" | "partial";
 }) {
   const supabase = getSupabaseServer();
 
